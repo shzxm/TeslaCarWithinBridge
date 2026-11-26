@@ -1,0 +1,63 @@
+name: Build Android APK (with Caddy + Cloudflare DNS)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '^1.24.0'
+
+      - name: Build Caddy (arm64 Android with cloudflare DNS plugin)
+        run: |
+          go install github.com/caddyserver/xcaddy/cmd/xcaddy@latest
+          mkdir -p app/src/main/jniLibs/arm64-v8a
+          GOOS=android GOARCH=arm64 CGO_ENABLED=0 xcaddy build \
+            --with github.com/caddy-dns/cloudflare \
+            --output app/src/main/jniLibs/arm64-v8a/libcaddy.so
+          chmod +x app/src/main/jniLibs/arm64-v8a/libcaddy.so
+          ls -lh app/src/main/jniLibs/arm64-v8a/libcaddy.so
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build Debug APK
+        run: |
+          gradle assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk TeslaCarWithinBridge-arm64.apk
+          ls -lh TeslaCarWithinBridge-arm64.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TeslaCarWithinBridge-arm64-apk
+          path: TeslaCarWithinBridge-arm64.apk
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v1.0.0-${GITHUB_RUN_NUMBER}"
+          gh release create "$TAG" TeslaCarWithinBridge-arm64.apk \
+            --title "TeslaCarWithinBridge $TAG" \
+            --notes "内置 Caddy (含 caddy-dns/cloudflare 插件) + Root iptables 劫持 + Cloudflare DNS 更新。"
