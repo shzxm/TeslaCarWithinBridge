@@ -67,6 +67,8 @@ class MainActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.btnScan).setOnClickListener { scanHotspotDevices() }
         findViewById<MaterialButton>(R.id.btnUpdateDns).setOnClickListener { updateCloudflareDns() }
         findViewById<MaterialButton>(R.id.btnCopyUrl).setOnClickListener { copyAccessUrl() }
+        findViewById<MaterialButton>(R.id.btnCopyLog).setOnClickListener { copyLogs() }
+        findViewById<MaterialButton>(R.id.btnClearLog).setOnClickListener { clearLogs() }
         btnToggle.setOnClickListener { toggleService() }
 
         LogBus.subscribe(logListener)
@@ -194,6 +196,23 @@ class MainActivity : AppCompatActivity() {
         val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         cm.setPrimaryClip(ClipData.newPlainText("TeslaURL", url))
         Toast.makeText(this, "已复制: $url", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun copyLogs() {
+        val logs = LogBus.snapshot()
+        if (logs.isBlank()) {
+            Toast.makeText(this, "暂无日志可复制", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        cm.setPrimaryClip(ClipData.newPlainText("TeslaBridgeLogs", logs))
+        val lines = logs.lines().size
+        Toast.makeText(this, "已复制全部日志 ($lines 行)", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun clearLogs() {
+        LogBus.clear()
+        Toast.makeText(this, "日志已清空", Toast.LENGTH_SHORT).show()
     }
 
     private fun requestNotificationPermissionIfNeeded() {

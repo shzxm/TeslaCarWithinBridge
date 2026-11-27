@@ -104,6 +104,7 @@ class BridgeService : Service() {
                     """
                     {
                         admin off
+                        auto_https disable_redirects
                         storage file_system ${dataDir.absolutePath}
                     }
 
@@ -133,17 +134,42 @@ class BridgeService : Service() {
                 BufferedReader(InputStreamReader(proc.inputStream)).use { reader ->
                     var line: String?
                     while (reader.readLine().also { line = it } != null) {
-                        LogBus.log("[Caddy] $line")
+                        val text = line ?: continue
+                        LogBus.log("[Caddy] $text")
+                        diagnoseCaddyLine(text)?.let { hint ->
+                            LogBus.log("[诊断提示] $hint")
+                        }
                     }
                 }
                 val code = proc.waitFor()
+                isRunning = false
                 LogBus.log("Caddy 已退出 (code=$code)")
             } catch (e: Exception) {
-                LogBus.log("启动异常: ${e.message}")
+                isRunning = false
+                LogBus.log("启动异常 [${e.javaClass.simpleName}]: ${e.message}")
             } finally {
                 isRunning = false
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
             }
         }.start()
+    }
+
+    private fun diagnoseCaddyLine(line: String): String? {
+        val lower = line.lowercase()
+        return when {
+            "address already in use" in lower ->
+                "端口已被占用，请更换 HTTPS 端口或检查本机是否有其他代理/Web 服务占用了该端口。"
+            "permission denied" in lower && "bind" in lower ->
+                "端口绑定无权限，请使用大于 1024 的端口（如 8443）。"
+            "expected 1 zone" in lower || "got status 403" in lower || "got status 401" in lower || "authentication error" in lower ->
+                "Caddy 申请证书时 Cloudflare 鉴权失败：请检查 API Token 是否具备 Zone:Read + DNS:Edit 权限。"
+            "could not determine zone" in lower ->
+                "Caddy 无法在 Cloudflare 中匹配到该域名的 Zone，请检查访问域名与 Token 权限范围。"
+            "certificate obtained successfully" in lower ->
+                "HTTPS 证书申请/加载成功！现在可以在特斯拉浏览器打开访问地址了。"
+            else -> null
+        }
     }
 
     private fun stopCaddyOnly() {
