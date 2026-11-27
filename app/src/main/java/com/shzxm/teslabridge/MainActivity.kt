@@ -81,8 +81,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadPrefs() {
         val sp = getSharedPreferences("bridge_cfg", Context.MODE_PRIVATE)
-        etRootDomain.setText(sp.getString("root_domain", "shzxm.com"))
-        etSubDomain.setText(sp.getString("sub_domain", "tesla.shzxm.com"))
+        etRootDomain.setText(sp.getString("root_domain", ""))
+        etSubDomain.setText(sp.getString("sub_domain", ""))
         etCfToken.setText(sp.getString("cf_token", ""))
         etVirtualIp.setText(sp.getString("virtual_ip", "100.64.0.1"))
         etListenPort.setText(sp.getString("listen_port", "8443"))
